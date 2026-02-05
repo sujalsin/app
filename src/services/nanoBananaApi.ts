@@ -1,5 +1,6 @@
 import { GenerationError } from '@/types/nanoBanana.types';
 import { convertImageToBase64 } from '@/utils/imageUtils';
+import { getTagValue, incrementTagInt, parseMoneyUSD } from '@/utils/tagUtils';
 import { supabase } from './supabaseClient';
 
 const API_KEY = process.env.EXPO_PUBLIC_NANO_BANANA_API_KEY;
@@ -90,18 +91,20 @@ export const NanoBananaApi = {
     },
 
     async updateStats(itemId: string) {
-        await supabase.rpc('increment_item_usage', { item_id: itemId });
-        // We didn't create this RPC. Let's do a direct update.
-
-        /*
-        const { data: item } = await supabase.from('clothing_items').select('last_worn').eq('id', itemId).single();
-        // Update last_worn. 
-        */
-
-        await supabase
+        // Update local wear stats (no RPC required)
+        const now = new Date().toISOString();
+        const { data: item } = await supabase
             .from('clothing_items')
-            .update({ last_worn: new Date().toISOString() })
-            .eq('id', itemId);
+            .select('tags, cost_per_wear')
+            .eq('id', itemId)
+            .single();
+
+        const { tags: nextTags, value: wears } = incrementTagInt(item?.tags ?? [], 'wears', 1, 0);
+        const priceStr = getTagValue(nextTags, 'price');
+        const price = parseMoneyUSD(priceStr ?? null);
+        const cpw = price !== null && wears > 0 ? Number((price / wears).toFixed(2)) : item?.cost_per_wear ?? 0;
+
+        await supabase.from('clothing_items').update({ last_worn: now, tags: nextTags, cost_per_wear: cpw }).eq('id', itemId);
     }
 };
 

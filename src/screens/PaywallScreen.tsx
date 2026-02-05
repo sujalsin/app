@@ -5,7 +5,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View
 import { PurchasesPackage } from 'react-native-purchases';
 
 export default function PaywallScreen() {
-    const { currentOffering, purchasePackage, restorePurchases, isPurchasing } = useRevenueCat();
+    const { currentOffering, purchasePackage, restorePurchases, isPurchasing, message } = useRevenueCat();
     const router = useRouter();
 
     const handlePurchase = async (pack: PurchasesPackage) => {
@@ -49,6 +49,8 @@ export default function PaywallScreen() {
             <TouchableOpacity onPress={restorePurchases} style={styles.restoreBtn} disabled={isPurchasing}>
                 <Text style={styles.restoreText}>Restore Purchases</Text>
             </TouchableOpacity>
+
+            {message && <Text style={styles.message}>{message}</Text>}
 
             <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
                 <Text style={styles.closeText}>Maybe Later</Text>
@@ -149,5 +151,11 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         alignItems: 'center'
+    },
+    message: {
+        textAlign: 'center',
+        marginBottom: 16,
+        color: '#2D2D2D',
+        fontWeight: '600'
     }
 });

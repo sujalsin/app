@@ -2,12 +2,12 @@ import { CreditService } from '@/services/creditService';
 import { supabase } from '@/services/supabaseClient';
 import { useUserStore } from '@/store/useStore';
 import { useEffect, useState } from 'react';
-import { Alert } from 'react-native';
 import Purchases, { CustomerInfo, PurchasesOffering, PurchasesPackage } from 'react-native-purchases';
 
 export function useRevenueCat() {
     const [currentOffering, setCurrentOffering] = useState<PurchasesOffering | null>(null);
     const [isPurchasing, setIsPurchasing] = useState(false);
+    const [message, setMessage] = useState<string | null>(null);
     const { setTier, setCredits } = useUserStore();
 
     useEffect(() => {
@@ -22,7 +22,7 @@ export function useRevenueCat() {
                 setCurrentOffering(offerings.current);
             }
         } catch (e) {
-            console.error('Error fetching offerings:', e);
+            console.debug('Error fetching offerings:', e);
         }
     };
 
@@ -31,7 +31,7 @@ export function useRevenueCat() {
             const customerInfo = await Purchases.getCustomerInfo();
             await handleCustomerInfo(customerInfo);
         } catch (e) {
-            console.error('Sync failed:', e);
+            console.debug('Sync failed:', e);
         }
     };
 
@@ -54,11 +54,15 @@ export function useRevenueCat() {
         // Or just always write to ensure sync?
         // Let's check store state or DB first.
         const dbStatus = await CreditService.getCreditStatus(user.id);
+        if (dbStatus) {
+            setTier(dbStatus.tier);
+            setCredits(dbStatus.credits_remaining);
+        }
 
         // If DB thinks free but RC thinks paid -> Upgrade
         // If DB thinks paid but RC thinks free -> Downgrade (expiration)
         if (dbStatus && dbStatus.tier !== tier) {
-            console.log(`Syncing tier: ${dbStatus.tier} -> ${tier}`);
+            console.debug(`Syncing tier: ${dbStatus.tier} -> ${tier}`);
             await CreditService.updateSubscription(user.id, tier);
 
             // Update local store
@@ -71,6 +75,7 @@ export function useRevenueCat() {
 
     const purchasePackage = async (pack: PurchasesPackage) => {
         setIsPurchasing(true);
+        setMessage(null);
         try {
             const { customerInfo } = await Purchases.purchasePackage(pack);
 
@@ -85,17 +90,17 @@ export function useRevenueCat() {
                     await CreditService.addCredits(user.id, 10);
                     const status = await CreditService.getCreditStatus(user.id);
                     if (status) setCredits(status.credits_remaining);
-                    Alert.alert("Success", "10 credits added!");
+                    setMessage('10 credits added.');
                 }
             } else {
                 // Subscription
                 await handleCustomerInfo(customerInfo);
+                setMessage('Subscription active.');
             }
 
-        } catch (e: any) {
-            if (!e.userCancelled) {
-                Alert.alert('Purchase Error', e.message);
-            }
+        } catch (e: unknown) {
+            const err = e as { userCancelled?: boolean; message?: string };
+            if (!err.userCancelled) setMessage(err.message ?? 'Purchase failed.');
         } finally {
             setIsPurchasing(false);
         }
@@ -103,12 +108,14 @@ export function useRevenueCat() {
 
     const restorePurchases = async () => {
         setIsPurchasing(true);
+        setMessage(null);
         try {
             const customerInfo = await Purchases.restorePurchases();
             await handleCustomerInfo(customerInfo);
-            Alert.alert("Restore Successful", "Your purchases have been restored.");
-        } catch (e: any) {
-            Alert.alert('Restore Error', e.message);
+            setMessage('Purchases restored.');
+        } catch (e: unknown) {
+            const err = e as { message?: string };
+            setMessage(err.message ?? 'Restore failed.');
         } finally {
             setIsPurchasing(false);
         }
@@ -118,6 +125,7 @@ export function useRevenueCat() {
         currentOffering,
         purchasePackage,
         restorePurchases,
-        isPurchasing
+        isPurchasing,
+        message
     };
 }

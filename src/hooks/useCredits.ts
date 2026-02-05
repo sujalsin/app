@@ -1,14 +1,16 @@
 import { CreditService } from '@/services/creditService';
 import { supabase } from '@/services/supabaseClient';
 import { useUserStore } from '@/store/useStore';
+import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert } from 'react-native';
 
 type GenerationType = 'tryon' | 'outfit';
 
 export function useCredits() {
     const { credits, tier, setCredits, setTier, incrementCredits, decrementCredits } = useUserStore();
     const [isProcessing, setIsProcessing] = useState(false);
+    const [lastMessage, setLastMessage] = useState<string | null>(null);
+    const router = useRouter();
 
     // Sync with DB
     const refreshCredits = useCallback(async () => {
@@ -22,7 +24,7 @@ export function useCredits() {
                 setTier(data.tier);
             }
         } catch (error) {
-            console.error('Failed to refresh credits:', error);
+            console.debug('Failed to refresh credits:', error);
         }
     }, [setCredits, setTier]);
 
@@ -36,15 +38,8 @@ export function useCredits() {
 
         // 2. Check Local State First
         if (credits <= 0) {
-            // Trigger Upgrade Flow
-            Alert.alert(
-                "Out of Credits",
-                "You have used all your generation credits. Upgrade to Pro for more!",
-                [
-                    { text: "Cancel", style: "cancel" },
-                    { text: "Upgrade", onPress: () => console.log('Navigate to subscription') } // TODO: Navigation
-                ]
-            );
+            setLastMessage("Out of credits. Upgrade to continue.");
+            router.push('/paywall');
             return null;
         }
 
@@ -72,23 +67,23 @@ export function useCredits() {
             return result;
 
         } catch (error) {
-            console.error("Task failed, rolling back credit:", error);
+            console.debug("Task failed, rolling back credit:", error);
 
             // 6. Rollback
             incrementCredits(1); // Local Revert
             await CreditService.refundCredit(user.id, type); // Server Revert
-
-            Alert.alert("Error", "Something went wrong. Your credit has been refunded.");
+            setLastMessage("Something went wrong. Your credit was refunded.");
             return null; // OR throw error depending on desired UX
         } finally {
             setIsProcessing(false);
         }
-    }, [credits, isProcessing, decrementCredits, incrementCredits]);
+    }, [credits, isProcessing, decrementCredits, incrementCredits, router]);
 
     return {
         credits,
         tier,
         isProcessing,
+        lastMessage,
         refreshCredits,
         useCredit
     };

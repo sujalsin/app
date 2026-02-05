@@ -1,3 +1,4 @@
+import { useAuth } from '@/providers/AuthProvider';
 import { supabase } from '@/services/supabaseClient';
 import { Database } from '@/types/database.types';
 import { generateOutfits, GeneratorConstraints } from '@/utils/outfitMatcher';
@@ -6,18 +7,22 @@ import { useQuery } from '@tanstack/react-query';
 type ClothingItem = Database['public']['Tables']['clothing_items']['Row'];
 
 export function useOutfitGenerator(constraints: GeneratorConstraints = {}) {
+    const { user } = useAuth();
     // Fetch All Items
     const { data: inventory, isLoading, error } = useQuery({
-        queryKey: ['clothing_items'],
+        queryKey: ['clothing_items', user?.id],
         queryFn: async () => {
+            if (!user) return [];
             const { data, error } = await supabase
                 .from('clothing_items')
-                .select('*');
+                .select('*')
+                .eq('user_id', user.id);
 
             if (error) throw error;
             return data as ClothingItem[];
         },
         staleTime: 1000 * 60 * 5, // 5 minutes
+        enabled: Boolean(user)
     });
 
     // Generate Suggestions

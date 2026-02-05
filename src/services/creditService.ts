@@ -3,6 +3,27 @@ import { supabase } from './supabaseClient';
 type GenerationType = 'tryon' | 'outfit';
 
 export const CreditService = {
+    async maybeResetMonthlyCredits(userId: string): Promise<void> {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('tier, credits_reset_date')
+            .eq('id', userId)
+            .single();
+
+        if (error || !data) return;
+        if (data.tier === 'free') return;
+
+        const lastReset = new Date(data.credits_reset_date);
+        const now = new Date();
+        const monthDiff = (now.getFullYear() - lastReset.getFullYear()) * 12 + (now.getMonth() - lastReset.getMonth());
+        if (monthDiff < 1) return;
+
+        const credits = data.tier === 'basic' ? 20 : 50;
+        await supabase
+            .from('profiles')
+            .update({ credits_remaining: credits, credits_reset_date: now.toISOString() })
+            .eq('id', userId);
+    },
     // Check if user has enough credits and return status
     async checkCredits(userId: string): Promise<boolean> {
         const { data, error } = await supabase
@@ -12,7 +33,7 @@ export const CreditService = {
             .single();
 
         if (error) {
-            console.error('Error checking credits:', error);
+            console.debug('Error checking credits:', error);
             return false;
         }
 
@@ -50,7 +71,7 @@ export const CreditService = {
 
             return true;
         } catch (e) {
-            console.error('Deduction failed:', e);
+            console.debug('Deduction failed:', e);
             return false;
         }
     },
@@ -70,11 +91,12 @@ export const CreditService = {
                 // but for MVP we just increment credits back.
             }
         } catch (e) {
-            console.error('Refund failed:', e);
+            console.debug('Refund failed:', e);
         }
     },
 
     async getCreditStatus(userId: string) {
+        await this.maybeResetMonthlyCredits(userId);
         const { data, error } = await supabase
             .from('profiles')
             .select('credits_remaining, tier, credits_reset_date')
@@ -98,7 +120,7 @@ export const CreditService = {
             if (error) throw error;
             return true;
         } catch (e) {
-            console.error('Add credits failed:', e);
+            console.debug('Add credits failed:', e);
             return false;
         }
     },
@@ -109,19 +131,16 @@ export const CreditService = {
             let credits = 0;
             if (tier === 'basic') credits = 20;
             if (tier === 'pro') credits = 50;
-            // If downgrading to free, we don't necessarily reset credits to 0 immediately unless expiration logic dictates. 
-            // Usually we keep them until month end? 
-            // "Subscription expiration -> downgrade to free tier" 
-            // "On purchase: update ... immediately"
 
-            // If upgrading/purchasing, we give the monthly allowance immediately.
-            const updates: any = { tier };
+            const updates: {
+                tier: 'free' | 'basic' | 'pro';
+                credits_remaining?: number;
+                credits_reset_date?: string;
+            } = { tier };
 
-            // If moving to paid tier, reset credits and date
             if (tier !== 'free') {
                 updates.credits_remaining = credits;
                 updates.credits_reset_date = new Date().toISOString();
-                // We assume next reset is handled by cron looking at this date + 1 month
             }
 
             const { error } = await supabase
@@ -132,7 +151,7 @@ export const CreditService = {
             if (error) throw error;
             return true;
         } catch (e) {
-            console.error('Subscription update failed:', e);
+            console.debug('Subscription update failed:', e);
             return false;
         }
     }

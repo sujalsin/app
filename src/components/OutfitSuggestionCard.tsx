@@ -1,17 +1,17 @@
 import { OutfitSuggestion } from '@/utils/outfitMatcher';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import React from 'react';
 import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface Props {
     suggestion: OutfitSuggestion;
     onPress?: () => void;
+    onSave?: () => void;
 }
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.75;
 
-export default function OutfitSuggestionCard({ suggestion, onPress }: Props) {
+export default function OutfitSuggestionCard({ suggestion, onPress, onSave }: Props) {
     const { items, reason, score } = suggestion;
 
     return (
@@ -33,8 +33,13 @@ export default function OutfitSuggestionCard({ suggestion, onPress }: Props) {
 
             <View style={styles.footer}>
                 <Text style={styles.cta}>Wear Today</Text>
-                <View style={styles.circleButton}>
-                    <FontAwesome name="arrow-right" size={12} color="white" />
+                <View style={styles.actions}>
+                    <TouchableOpacity style={styles.secondaryBtn} onPress={onSave}>
+                        <Text style={styles.secondaryText}>Save</Text>
+                    </TouchableOpacity>
+                    <View style={styles.circleButton}>
+                        <FontAwesome name="arrow-right" size={12} color="white" />
+                    </View>
                 </View>
             </View>
         </TouchableOpacity>
@@ -107,6 +112,11 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#2D2D2D'
     },
+    actions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8
+    },
     circleButton: {
         width: 24,
         height: 24,
@@ -114,5 +124,18 @@ const styles = StyleSheet.create({
         backgroundColor: '#2D2D2D',
         justifyContent: 'center',
         alignItems: 'center'
+    },
+    secondaryBtn: {
+        backgroundColor: '#fff',
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 12
+    },
+    secondaryText: {
+        color: '#2D2D2D',
+        fontWeight: '600',
+        fontSize: 12
     }
 });

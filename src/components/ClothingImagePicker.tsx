@@ -10,7 +10,7 @@ interface Props {
 }
 
 export default function ClothingImagePicker({ onImageSelected, onUploadComplete, userId }: Props) {
-    const { selectImage, uploadImage, uploading, localUri, reset } = useImageUpload();
+    const { selectImage, uploadImage, uploading, localUri, reset, errorMessage } = useImageUpload();
 
     const handlePick = async () => {
         const uri = await selectImage();
@@ -30,6 +30,7 @@ export default function ClothingImagePicker({ onImageSelected, onUploadComplete,
 
     return (
         <View style={styles.container}>
+            {errorMessage && <Text style={styles.error}>{errorMessage}</Text>}
             {!localUri ? (
                 <TouchableOpacity style={styles.button} onPress={handlePick}>
                     <FontAwesome name="camera" size={24} color="white" />
@@ -62,6 +63,12 @@ const styles = StyleSheet.create({
     container: {
         alignItems: 'center',
         marginVertical: 10
+    },
+    error: {
+        color: '#B00020',
+        marginBottom: 10,
+        fontWeight: '600',
+        textAlign: 'center'
     },
     button: {
         backgroundColor: '#333',

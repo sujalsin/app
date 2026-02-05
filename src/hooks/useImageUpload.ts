@@ -2,7 +2,6 @@ import { supabase } from '@/services/supabaseClient';
 import { calculateHash, compressImage, extractColors, validateImage } from '@/utils/imageUtils';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
-import { Alert } from 'react-native';
 
 export interface UploadResult {
     publicUrl: string;
@@ -13,12 +12,14 @@ export interface UploadResult {
 export function useImageUpload() {
     const [uploading, setUploading] = useState(false);
     const [localUri, setLocalUri] = useState<string | null>(null);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     const selectImage = async () => {
+        setErrorMessage(null);
         // 1. Permissions
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-            Alert.alert('Permission needed', 'Sorry, we need camera roll permissions to make this work!');
+            setErrorMessage('Permission needed to access your photos.');
             return null;
         }
 
@@ -35,7 +36,7 @@ export function useImageUpload() {
 
         // 3. Validation
         if (!validateImage(uri)) {
-            Alert.alert("Invalid File", "Please select a JPG or PNG image.");
+            setErrorMessage('Please select a JPG, PNG, or WEBP image.');
             return null;
         }
 
@@ -45,6 +46,7 @@ export function useImageUpload() {
 
     const uploadImage = async (uri: string, userId: string): Promise<UploadResult | null> => {
         setUploading(true);
+        setErrorMessage(null);
         try {
             // 1. Process
             const compressed = await compressImage(uri);
@@ -60,11 +62,12 @@ export function useImageUpload() {
             // Read binary for upload
             // In Expo/RN, FormData works with uri/type/name
             const formData = new FormData();
-            formData.append('file', {
+            const file: { uri: string; name: string; type: string } = {
                 uri: compressed.uri,
                 name: filename,
                 type: 'image/jpeg',
-            } as any);
+            };
+            formData.append('file', file as unknown as Blob);
 
             const { data, error } = await supabase.storage
                 .from('clothing_items') // Ensure bucket exists! (Manual step usually, but code assumes it)
@@ -83,8 +86,8 @@ export function useImageUpload() {
             return { publicUrl, colors, hash };
 
         } catch (error) {
-            console.error("Upload failed:", error);
-            Alert.alert("Upload Failed", "Could not upload image. Please try again.");
+            console.debug("Upload failed:", error);
+            setErrorMessage('Upload failed. Please try again.');
             return null;
         } finally {
             setUploading(false);
@@ -96,6 +99,10 @@ export function useImageUpload() {
         uploadImage,
         uploading,
         localUri,
-        reset: () => setLocalUri(null)
+        errorMessage,
+        reset: () => {
+            setLocalUri(null);
+            setErrorMessage(null);
+        }
     };
 }
