@@ -1,0 +1,157 @@
+# Capsule Wardrobe App - Cursor Rules
+
+## Project Overview
+React Native Expo app for capsule wardrobe management with AI try-on (Nano Banana), credit-based monetization, and rule-based outfit generation.
+
+## Tech Stack Constraints
+- **Framework**: React Native Expo SDK 50+ (managed workflow)
+- **Language**: TypeScript (strict mode, no implicit any)
+- **Navigation**: Expo Router (file-based, type-safe)
+- **State**: Zustand (client), TanStack Query v5 (server)
+- **Backend**: Supabase (Postgres, Auth, Storage, Edge Functions)
+- **Payments**: RevenueCat (React Native Purchases SDK)
+- **AI**: Google AI Studio API (Gemini 2.5 Flash Image)
+- **Styling**: NativeWind (Tailwind for RN) or StyleSheet
+- **Images**: expo-image-manipulator, expo-image-picker
+
+## Architecture Rules
+
+### File Structure
+
+/src
+/app              # Expo Router files (screens)
+/components       # Reusable UI components
+/hooks            # Custom React hooks (useAuth, useCredits, etc.)
+/services         # API clients (supabase, revenueCat, nanoBanana)
+/stores           # Zustand stores (creditStore, closetStore)
+/utils            # Pure functions (colorUtils, outfitMatcher)
+/types            # TypeScript interfaces and types
+/constants        # Config, theme, API endpoints
+
+
+### Coding Standards
+
+**TypeScript:**
+- All functions must have explicit return types
+- No `any` types (use `unknown` with type guards if necessary)
+- Use strict null checks
+- Prefer interfaces over types for objects
+- Use enums for finite states ( tiers, categories, occasions )
+
+**React Native:**
+- Functional components only (no class components)
+- Custom hooks for business logic (fat hooks, thin components)
+- Memoization: useMemo for expensive calculations (outfit generation), useCallback for event handlers
+- Images: Always use expo-image (better performance than default Image)
+- Lists: Use FlashList (not FlatList) for clothing grid
+
+**State Management:**
+- Server state (credits, clothing items) → TanStack Query
+- Client state (UI, filters) → Zustand
+- Never store sensitive data (API keys) in state
+
+**API Integration:**
+- Supabase: Use supabase-js v2, RLS policies required for all tables
+- RevenueCat: Always verify purchases server-side when possible
+- Nano Banana: Implement request debouncing (500ms), strict timeout (30s)
+
+### Security & Performance
+
+**Security:**
+- Environment variables: Use expo-constants (process.env in Expo)
+- Never commit .env files (add to .gitignore)
+- API keys: Rotate monthly, use expo-updates for OTA updates
+- Image uploads: Validate file type (jpg/png), size (<5MB), scan for malware
+
+**Performance:**
+- Image optimization: Compress to 1024px max, quality 0.8, progressive JPEG
+- Lazy loading: Use dynamic imports for heavy screens (TryOnScreen)
+- Debounce: User input (search, filters) debounced 300ms
+- Cache: React Query cacheTime 5 minutes, staleTime 1 minute
+
+### Database & Backend Rules
+
+**Supabase:**
+- All tables must have RLS enabled
+- Use service role key only in Edge Functions, never in client
+- Credits logic must be in database transaction (check + decrement atomic)
+- Storage buckets: clothing-images (public), try-on-results (private)
+
+**Edge Functions:**
+- reset_monthly_credits: Runs 1st of month via pg_cron
+- verify_receipt: RevenueCat webhook handler
+- nanobanana_proxy: Proxy API calls to hide API key, rate limit
+
+### AI & Credit System
+
+**Nano Banana Integration:**
+- Guard clause: Check credits before API call (client + server side)
+- Cost tracking: Log every generation to generation_logs table
+- Error handling: 429 (rate limit) → queue retry with exponential backoff
+- Fallback: If AI fails, offer rule-based outfit suggestion
+
+**Credit Logic:**
+- Free tier: 3 lifetime generations (hard limit)
+- Paid tiers: Credits reset monthly (not rollover)
+- Grace period: Allow 1 overage with warning, then hard stop
+- Sync: Credits synced from Supabase on app focus, RevenueCat on purchase
+
+### UI/UX Guidelines
+
+**Design System:**
+- Colors: Neutral palette (Stone-50 to Stone-900, Red-500 for accents)
+- Typography: System font (SF Pro / Roboto), scale 1.2
+- Spacing: 4px base unit (4, 8, 12, 16, 24, 32)
+- Border radius: 12px (cards), 24px (buttons), full (avatars)
+
+**Accessibility:**
+- Touch targets: Min 44x44dp
+- Screen reader labels: All images have accessibilityLabel
+- Color contrast: WCAG AA minimum (4.5:1 for text)
+- Dynamic type: Support system font scaling
+
+**User Feedback:**
+- Loading states: Skeleton screens for lists, spinners for buttons
+- Empty states: Illustration + helpful text + CTA
+- Error boundaries: Catch JS errors, show friendly error screen
+- Toasts: Use react-native-toast-message for success/error (3s duration)
+
+### Testing & Quality
+
+**Before generating code:**
+- Check if similar utility exists in /utils (DRY principle)
+- Ensure types are defined in /types before implementation
+- Consider error cases (network failure, permission denied)
+
+**Code review checklist:**
+- No console.log in production code (use console.debug only)
+- All async functions have try/catch
+- All user inputs sanitized
+- Memory leaks: Cleanup subscriptions in useEffect return
+
+### Git & Deployment
+
+**Commits:**
+- Format: type(scope): description (conventional commits)
+- Examples: feat(credits): add monthly reset logic, fix(outfits): resolve color matching bug
+
+**Expo EAS:**
+- Build profiles: development (simulator), preview (TestFlight), production (App Store)
+- Auto-increment version codes
+- OTA updates: Only for JS changes, native changes require store review
+
+## Prohibited Patterns
+
+❌ Do not use:
+- Class components (use functions + hooks)
+- Context API for state (use Zustand)
+- AsyncStorage for sensitive data (use Supabase auth)
+- Any external image hosting (use Supabase Storage only)
+- Alert.alert (use custom modal components)
+- setTimeout for async operations (use proper async/await)
+
+❌ Do not generate:
+- Mock data or placeholder content (use real Supabase integration)
+- console.error without user-facing error handling
+- Any code that exposes API keys
+- Commented-out code (delete or implement)
